@@ -6,6 +6,7 @@ import { MdEdit, MdDelete } from "react-icons/md";
 
 // Define types for the tasks data
 interface ITask {
+  id: string;
   title: string;
   description: string;
   status: string;
@@ -13,6 +14,7 @@ interface ITask {
 
 // Define types for the data in each column
 interface Column {
+  id: string;
   name: string;
   tasks?: ITask[];
 }
