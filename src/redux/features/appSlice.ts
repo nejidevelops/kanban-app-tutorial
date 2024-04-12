@@ -1,29 +1,57 @@
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { RootState } from "../store";
+import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
+import { getSession } from "next-auth/react";
+// additionally import the doc and updateDoc method from firestore to get user document reference and update the document, respectively
+import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
+import { db } from "@/components/app/utils/firebaseConfig";
 
-// Define the initial state for the slice
-const initialState = {
-  currentBoardName: "",
-};
-
-export const features = createSlice({
-  // Name of the slice
-  name: "features",
-  initialState,
-  // Functions that update the initialState are written inside the reducers object
-  reducers: {
-    // This function updates the board name when called
-    setPageTitle: (state, action: PayloadAction<string>) => {
-      state.currentBoardName = action.payload;
-    },
-  },
+export const fireStoreApi = createApi({
+  reducerPath: "firestoreApi",
+  baseQuery: fakeBaseQuery(),
+  tagTypes: ["Tasks"],
+  endpoints: (builder) => ({
+    fetchDataFromDb: builder.query<{ [key: string]: any }[], void>({
+      async queryFn() {
+        try {
+          const session = await getSession();
+          if (session?.user) {
+            const { user } = session;
+            const ref = collection(db, `users/${user.email}/tasks`);
+            const querySnapshot = await getDocs(ref);
+            return { data: querySnapshot.docs.map((doc) => doc.data()) };
+          }
+        } catch (e) {
+          return { error: e };
+        }
+      },
+      providesTags: ["Tasks"],
+    }),
+    // endpoint for CRUD actions
+    updateBoardToDb: builder.mutation({
+      async queryFn(boardData) {
+        try {
+          const session = await getSession();
+          if (session?.user) {
+            const { user } = session;
+            const ref = collection(db, `users/${user.email}/tasks`);
+            const querySnapshot = await getDocs(ref);
+            const boardId = querySnapshot.docs.map((doc) => {
+              return doc.id;
+            });
+            await updateDoc(doc(db, `users/${user.email}/tasks/${boardId}`), {
+              boards: boardData,
+            });
+          }
+          return { data: null };
+        } catch (e) {
+          return { error: e };
+        }
+      },
+      invalidatesTags: ["Tasks"], // this will be used to invalidate the initially fetched data. 
+      // Data will have to be refetched once this enpoint has been called
+    }),
+  }),
 });
 
-// Export the functions defined inside the reducers here
-export const { setPageTitle } = features.actions;
-
-// Selector function to retrieve the current board name from the state
-export const getPageTitle = (state: RootState) => state.features.currentBoardName;
-
-// Export the reducer for use in the Redux store
-export default features.reducer;
+// Export hooks for using the created endpoint
+export const { useFetchDataFromDbQuery, useUpdateBoardToDbMutation } =
+  fireStoreApi;
